@@ -28,6 +28,12 @@ services:
       # Password for BasicAuth (letters and digits only)
       # Prefer secrets-mechanisms instead of environment variables.
       # AUTH_PASSWORD: ''
+      # Upstream proxy server for forward proxy support (optional)
+      # Format: type://[user:pass@]host:port where type is http, socks4, or socks5
+      # UPSTREAM_PROXY: 'http://upstream-proxy.example.com:8080'
+      # Domain filter for upstream proxy (optional)
+      # If set, only requests to this domain/network will use the upstream proxy
+      # UPSTREAM_DOMAIN: '.example.com'
     # secrets:
     #   - auth_password
     # # With Alpine base image, this is required, for some reason, or /run/secrets won't get mounted.
