@@ -7,6 +7,18 @@ set -e
 
 echo "=== Testing Upstream Proxy Feature ==="
 
+# Check which test image is available
+if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "test-tinyproxy-alpine"; then
+    TEST_IMAGE="test-tinyproxy-alpine"
+    echo "Using Alpine image for upstream proxy tests"
+elif docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "test-tinyproxy-debian"; then
+    TEST_IMAGE="test-tinyproxy-debian"
+    echo "Using Debian image for upstream proxy tests"
+else
+    echo "❌ No test images available"
+    exit 1
+fi
+
 # Cleanup function
 cleanup_container() {
     local container_name="$1"
@@ -41,7 +53,7 @@ echo "Testing HTTP upstream proxy without domain..."
 cleanup_container test-upstream-http
 docker run -d --name test-upstream-http \
     -e UPSTREAM_PROXY="http://proxy.example.com:8080" \
-    test-tinyproxy-alpine
+    $TEST_IMAGE
 sleep 3
 check_upstream_config test-upstream-http "Upstream http proxy.example.com:8080"
 cleanup_container test-upstream-http
@@ -53,9 +65,9 @@ cleanup_container test-upstream-http-domain
 docker run -d --name test-upstream-http-domain \
     -e UPSTREAM_PROXY="http://proxy.example.com:8080" \
     -e UPSTREAM_DOMAIN=".corporate.com" \
-    test-tinyproxy-alpine
+    $TEST_IMAGE
 sleep 3
-check_upstream_config test-upstream-http-domain "Upstream http proxy.example.com:8080 .corporate.com"
+check_upstream_config test-upstream-http-domain "Upstream http proxy.example.com:8080 \".corporate.com\""
 cleanup_container test-upstream-http-domain
 echo "✅ HTTP upstream proxy with domain test passed"
 
@@ -64,7 +76,7 @@ echo "Testing SOCKS5 upstream proxy..."
 cleanup_container test-upstream-socks5
 docker run -d --name test-upstream-socks5 \
     -e UPSTREAM_PROXY="socks5://socks.example.com:1080" \
-    test-tinyproxy-alpine
+    $TEST_IMAGE
 sleep 3
 check_upstream_config test-upstream-socks5 "Upstream socks5 socks.example.com:1080"
 cleanup_container test-upstream-socks5
@@ -76,9 +88,9 @@ cleanup_container test-upstream-socks4
 docker run -d --name test-upstream-socks4 \
     -e UPSTREAM_PROXY="socks4://socks.example.com:1080" \
     -e UPSTREAM_DOMAIN="10.0.0.0/8" \
-    test-tinyproxy-alpine
+    $TEST_IMAGE
 sleep 3
-check_upstream_config test-upstream-socks4 "Upstream socks4 socks.example.com:1080 10.0.0.0/8"
+check_upstream_config test-upstream-socks4 "Upstream socks4 socks.example.com:1080 \"10.0.0.0/8\""
 cleanup_container test-upstream-socks4
 echo "✅ SOCKS4 upstream proxy with domain test passed"
 
@@ -87,29 +99,33 @@ echo "Testing upstream proxy with authentication credentials..."
 cleanup_container test-upstream-auth
 docker run -d --name test-upstream-auth \
     -e UPSTREAM_PROXY="http://user:pass@proxy.example.com:8080" \
-    test-tinyproxy-alpine
+    $TEST_IMAGE
 sleep 3
 # Should strip authentication and use only host:port
 check_upstream_config test-upstream-auth "Upstream http proxy.example.com:8080"
 cleanup_container test-upstream-auth
 echo "✅ Upstream proxy with authentication test passed"
 
-# Test 6: Test with Debian variant
-echo "Testing upstream proxy with Debian variant..."
-cleanup_container test-upstream-debian
-docker run -d --name test-upstream-debian \
-    -e UPSTREAM_PROXY="http://proxy.example.com:3128" \
-    -e UPSTREAM_DOMAIN=".intranet.com" \
-    test-tinyproxy-debian
-sleep 3
-check_upstream_config test-upstream-debian "Upstream http proxy.example.com:3128 .intranet.com"
-cleanup_container test-upstream-debian
-echo "✅ Debian upstream proxy test passed"
+# Test 6: Test with different variant (if both available)
+if [ "$TEST_IMAGE" = "test-tinyproxy-alpine" ] && docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "test-tinyproxy-debian"; then
+    echo "Testing upstream proxy with Debian variant..."
+    cleanup_container test-upstream-debian
+    docker run -d --name test-upstream-debian \
+        -e UPSTREAM_PROXY="http://proxy.example.com:3128" \
+        -e UPSTREAM_DOMAIN=".intranet.com" \
+        test-tinyproxy-debian
+    sleep 3
+    check_upstream_config test-upstream-debian "Upstream http proxy.example.com:3128 \".intranet.com\""
+    cleanup_container test-upstream-debian
+    echo "✅ Debian upstream proxy test passed"
+elif [ "$TEST_IMAGE" = "test-tinyproxy-debian" ]; then
+    echo "ℹ️  Only Debian image available, skipping Alpine variant test"
+fi
 
 # Test 7: No upstream proxy (baseline test)
 echo "Testing container without upstream proxy..."
 cleanup_container test-no-upstream
-docker run -d --name test-no-upstream test-tinyproxy-alpine
+docker run -d --name test-no-upstream $TEST_IMAGE
 sleep 3
 config_content=$(docker exec test-no-upstream cat /etc/tinyproxy/tinyproxy.conf)
 if echo "$config_content" | grep "^Upstream" > /dev/null; then

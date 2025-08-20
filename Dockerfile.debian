@@ -76,7 +76,7 @@ CMD set -eu; \
             proxy_url=$(echo "$UPSTREAM_PROXY" | sed 's|.*://||'); \
             proxy_host_port=$(echo "$proxy_url" | sed 's|.*@||'); \
             if [ -n "$UPSTREAM_DOMAIN" ]; then \
-                echo "Upstream $proxy_type $proxy_host_port $UPSTREAM_DOMAIN" >> "$CONFIG"; \
+                echo "Upstream $proxy_type $proxy_host_port \"$UPSTREAM_DOMAIN\"" >> "$CONFIG"; \
             else \
                 echo "Upstream $proxy_type $proxy_host_port" >> "$CONFIG"; \
             fi; \
