@@ -1,0 +1,103 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test-docker-build:
+    runs-on: ubuntu-latest
+    name: Test Docker Build Process
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Run Docker build tests
+      run: ./test-docker-build.sh
+
+  test-tinyproxy-service:
+    runs-on: ubuntu-latest
+    name: Test Tinyproxy Service Functionality
+    needs: test-docker-build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Run service functionality tests
+      run: |
+        ./test-docker-build.sh
+        ./test-tinyproxy-service.sh
+
+  test-upstream-proxy:
+    runs-on: ubuntu-latest
+    name: Test Upstream Proxy Feature
+    needs: test-docker-build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Run upstream proxy tests
+      run: |
+        ./test-docker-build.sh
+        ./test-upstream-proxy.sh
+
+  integration-test:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    needs: [test-tinyproxy-service, test-upstream-proxy]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build test images
+      run: ./test-docker-build.sh
+      
+    - name: Test docker-compose configuration
+      run: |
+        # Test docker-compose can start services
+        docker-compose config
+        echo "✅ Docker Compose configuration is valid"
+        
+    - name: Test healthcheck functionality
+      run: |
+        # Build Alpine image
+        docker build -t test-healthcheck -f Dockerfile .
+        
+        # Start container with stats enabled for healthcheck
+        docker run -d --name test-healthcheck-container \
+          -e STAT_HOST="tinyproxy.stats" \
+          test-healthcheck
+        
+        # Wait for service to start
+        sleep 10
+        
+        # Test healthcheck command directly
+        if docker exec test-healthcheck-container curl -I -H "Host: tinyproxy.stats" "http://localhost:8888"; then
+          echo "✅ Healthcheck command works"
+        else
+          echo "❌ Healthcheck command failed"
+          docker logs test-healthcheck-container
+          exit 1
+        fi
+        
+        # Cleanup
+        docker stop test-healthcheck-container
+        docker rm test-healthcheck-container
