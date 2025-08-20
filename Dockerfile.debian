@@ -31,7 +31,7 @@ ENV AUTH_PASSWORD=""
 # password-file manually and change this if necessary
 ENV AUTH_PASSWORD_FILE="/run/secrets/auth_password"
 # Upstream proxy server for forward proxy support
-# Format: type://[user:pass@]host:port
+# Format: type://[user:pass@]host:port (auth credentials not supported in upstream config)
 # Supported types: http, socks4, socks5
 ENV UPSTREAM_PROXY=""
 # Domain filter for upstream proxy (optional)
@@ -74,10 +74,11 @@ CMD set -eu; \
         [ -z "$UPSTREAM_PROXY" ] || { \
             proxy_type=$(echo "$UPSTREAM_PROXY" | sed 's|://.*||'); \
             proxy_url=$(echo "$UPSTREAM_PROXY" | sed 's|.*://||'); \
+            proxy_host_port=$(echo "$proxy_url" | sed 's|.*@||'); \
             if [ -n "$UPSTREAM_DOMAIN" ]; then \
-                echo "Upstream $proxy_type $proxy_url \"$UPSTREAM_DOMAIN\"" >> "$CONFIG"; \
+                echo "Upstream $proxy_type $proxy_host_port $UPSTREAM_DOMAIN" >> "$CONFIG"; \
             else \
-                echo "Upstream $proxy_type $proxy_url" >> "$CONFIG"; \
+                echo "Upstream $proxy_type $proxy_host_port" >> "$CONFIG"; \
             fi; \
         }; \
         sed -i 's|^LogFile |# LogFile |' "$CONFIG"; \
