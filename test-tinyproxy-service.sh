@@ -77,38 +77,20 @@ check_tinyproxy_listening() {
     return 1
 }
 
-# Test 1: Basic Alpine container functionality (if available)
-if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "test-tinyproxy-alpine"; then
-    echo "Testing basic Alpine container..."
-    cleanup_container test-alpine-basic
-    docker run -d --name test-alpine-basic -p 18888:8888 test-tinyproxy-alpine
-    sleep 5
-    check_tinyproxy_listening test-alpine-basic 8888
-    cleanup_container test-alpine-basic
-    echo "✅ Basic Alpine container test passed"
-    ALPINE_AVAILABLE=true
-else
-    echo "⚠️  Alpine image not available, skipping Alpine tests"
-    ALPINE_AVAILABLE=false
-fi
+# Determine which test image to use
+TEST_IMAGE="test-tinyproxy"
 
-# Test 2: Basic Debian container functionality  
-echo "Testing basic Debian container..."
-cleanup_container test-debian-basic
-docker run -d --name test-debian-basic -p 18889:8888 test-tinyproxy-debian
+# Test 1: Basic container functionality
+echo "Testing basic container functionality..."
+cleanup_container test-basic
+docker run -d --name test-basic -p 18888:8888 $TEST_IMAGE
 sleep 5
-check_tinyproxy_listening test-debian-basic 8888
-cleanup_container test-debian-basic
-echo "✅ Basic Debian container test passed"
+check_tinyproxy_listening test-basic 8888
+cleanup_container test-basic
+echo "✅ Basic container test passed"
 
-# Test 3: Custom port configuration (use Debian if Alpine not available)
-if [ "$ALPINE_AVAILABLE" = true ]; then
-    TEST_IMAGE="test-tinyproxy-alpine"
-    echo "Testing custom port configuration with Alpine..."
-else
-    TEST_IMAGE="test-tinyproxy-debian"
-    echo "Testing custom port configuration with Debian..."
-fi
+# Test 2: Custom port configuration
+echo "Testing custom port configuration..."
 cleanup_container test-custom-port
 docker run -d --name test-custom-port -p 19999:9999 -e PORT=9999 $TEST_IMAGE
 sleep 5
@@ -116,14 +98,8 @@ check_tinyproxy_listening test-custom-port 9999
 cleanup_container test-custom-port
 echo "✅ Custom port configuration test passed"
 
-# Test 4: Upstream proxy configuration (use available image)
-if [ "$ALPINE_AVAILABLE" = true ]; then
-    TEST_IMAGE="test-tinyproxy-alpine"
-    echo "Testing upstream proxy configuration with Alpine..."
-else
-    TEST_IMAGE="test-tinyproxy-debian"
-    echo "Testing upstream proxy configuration with Debian..."
-fi
+# Test 3: Upstream proxy configuration
+echo "Testing upstream proxy configuration..."
 cleanup_container test-upstream
 docker run -d --name test-upstream \
     -e UPSTREAM_PROXY="http://proxy.example.com:8080" \
@@ -145,14 +121,8 @@ echo "✅ Upstream proxy configuration found"
 cleanup_container test-upstream
 echo "✅ Upstream proxy configuration test passed"
 
-# Test 5: Stats page functionality (use available image)
-if [ "$ALPINE_AVAILABLE" = true ]; then
-    TEST_IMAGE="test-tinyproxy-alpine"
-    echo "Testing stats page functionality with Alpine..."
-else
-    TEST_IMAGE="test-tinyproxy-debian"
-    echo "Testing stats page functionality with Debian..."
-fi
+# Test 4: Stats page functionality
+echo "Testing stats page functionality..."
 cleanup_container test-stats
 docker run -d --name test-stats \
     -e STAT_HOST="tinyproxy.stats" \

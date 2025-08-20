@@ -78,13 +78,9 @@ jobs:
         
     - name: Test healthcheck functionality
       run: |
-        # Try to build Alpine image first, fall back to Debian if it fails
-        if docker build -t test-healthcheck -f Dockerfile . 2>/dev/null; then
-          echo "Using Alpine image for healthcheck test"
-        elif docker build -t test-healthcheck -f Dockerfile.debian . 2>/dev/null; then
-          echo "Using Debian image for healthcheck test"
-        else
-          echo "Failed to build any test image"
+        # Build main Dockerfile for healthcheck test
+        if ! docker build -t test-healthcheck -f Dockerfile .; then
+          echo "Failed to build test image"
           exit 1
         fi
         

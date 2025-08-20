@@ -7,17 +7,10 @@ set -e
 
 echo "=== Testing Upstream Proxy Feature ==="
 
-# Check which test image is available
-if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "test-tinyproxy-alpine"; then
-    TEST_IMAGE="test-tinyproxy-alpine"
-    echo "Using Alpine image for upstream proxy tests"
-elif docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "test-tinyproxy-debian"; then
-    TEST_IMAGE="test-tinyproxy-debian"
-    echo "Using Debian image for upstream proxy tests"
-else
-    echo "❌ No test images available"
-    exit 1
-fi
+# Determine which test image to use
+TEST_IMAGE="test-tinyproxy"
+
+echo "Using $TEST_IMAGE for upstream proxy tests"
 
 # Cleanup function
 cleanup_container() {
@@ -106,23 +99,7 @@ check_upstream_config test-upstream-auth "Upstream http proxy.example.com:8080"
 cleanup_container test-upstream-auth
 echo "✅ Upstream proxy with authentication test passed"
 
-# Test 6: Test with different variant (if both available)
-if [ "$TEST_IMAGE" = "test-tinyproxy-alpine" ] && docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "test-tinyproxy-debian"; then
-    echo "Testing upstream proxy with Debian variant..."
-    cleanup_container test-upstream-debian
-    docker run -d --name test-upstream-debian \
-        -e UPSTREAM_PROXY="http://proxy.example.com:3128" \
-        -e UPSTREAM_DOMAIN=".intranet.com" \
-        test-tinyproxy-debian
-    sleep 3
-    check_upstream_config test-upstream-debian "Upstream http proxy.example.com:3128 \".intranet.com\""
-    cleanup_container test-upstream-debian
-    echo "✅ Debian upstream proxy test passed"
-elif [ "$TEST_IMAGE" = "test-tinyproxy-debian" ]; then
-    echo "ℹ️  Only Debian image available, skipping Alpine variant test"
-fi
-
-# Test 7: No upstream proxy (baseline test)
+# Test 6: No upstream proxy (baseline test)
 echo "Testing container without upstream proxy..."
 cleanup_container test-no-upstream
 docker run -d --name test-no-upstream $TEST_IMAGE
