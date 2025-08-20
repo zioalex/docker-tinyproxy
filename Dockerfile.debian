@@ -72,10 +72,12 @@ CMD set -eu; \
         [ -z "$AUTH_USER" ] || [ -z "$AUTH_PASSWORD" ]        || sed -i "s|^#BasicAuth .*|BasicAuth ${AUTH_USER} ${AUTH_PASSWORD}|" "$CONFIG"; \
         [ -z "$AUTH_USER" ] || [ ! -f "$AUTH_PASSWORD_FILE" ] || sed -Ei "s|^#?BasicAuth .*|BasicAuth ${AUTH_USER} $(cat "$AUTH_PASSWORD_FILE")|" "$CONFIG"; \
         [ -z "$UPSTREAM_PROXY" ] || { \
+            proxy_type=$(echo "$UPSTREAM_PROXY" | sed 's|://.*||'); \
+            proxy_url=$(echo "$UPSTREAM_PROXY" | sed 's|.*://||'); \
             if [ -n "$UPSTREAM_DOMAIN" ]; then \
-                echo "Upstream $UPSTREAM_PROXY \"$UPSTREAM_DOMAIN\"" >> "$CONFIG"; \
+                echo "Upstream $proxy_type $proxy_url \"$UPSTREAM_DOMAIN\"" >> "$CONFIG"; \
             else \
-                echo "Upstream $UPSTREAM_PROXY" >> "$CONFIG"; \
+                echo "Upstream $proxy_type $proxy_url" >> "$CONFIG"; \
             fi; \
         }; \
         sed -i 's|^LogFile |# LogFile |' "$CONFIG"; \
