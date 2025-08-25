@@ -5,6 +5,7 @@ default:
 
 stages:
   - build
+  - test
   - distribute
 
 variables:
@@ -24,6 +25,27 @@ build:
         IMAGE_TAG=":$(echo "$CI_COMMIT_REF_NAME" | sed 's/\.x$//')"
       fi
     - docker buildx build --platform linux/amd64,linux/arm64 --pull --push -t "${CI_REGISTRY_IMAGE}${IMAGE_TAG}" .
+
+test:
+  stage: test
+  script:
+    # If not in master, use branch name with any ".x" suffixes removed.
+    - |
+      if [ "$CI_COMMIT_BRANCH" != "$CI_DEFAULT_BRANCH" ]; then
+        IMAGE_TAG=":$(echo "$CI_COMMIT_REF_NAME" | sed 's/\.x$//')"
+      fi
+    # Pull the image and test that it listens on port 8888
+    - docker pull "${CI_REGISTRY_IMAGE}${IMAGE_TAG}"
+    - docker run -d --name tinyproxy-test -p 8888:8888 "${CI_REGISTRY_IMAGE}${IMAGE_TAG}"
+    # Wait for container to start
+    - sleep 10
+    # Test that port 8888 is accessible
+    - docker exec tinyproxy-test netstat -ln | grep ":8888"
+    # Test with curl (using the stats endpoint if available)
+    - timeout 30 sh -c 'until nc -z localhost 8888; do sleep 1; done'
+    # Clean up
+    - docker stop tinyproxy-test
+    - docker rm tinyproxy-test
 
 distribute:
   stage: distribute
