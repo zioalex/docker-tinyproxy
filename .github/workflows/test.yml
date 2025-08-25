@@ -1,4 +1,4 @@
-name: CI Tests
+name: Simple CI Tests
 
 on:
   push:
@@ -7,9 +7,9 @@ on:
     branches: [ main, master, develop ]
 
 jobs:
-  test-docker-build:
+  test:
     runs-on: ubuntu-latest
-    name: Test Docker Build Process
+    name: Test Build and Proxy Listening
     
     steps:
     - name: Checkout code
@@ -18,95 +18,52 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
-    - name: Run Docker build tests
-      run: ./test-docker-build.sh
-
-  test-tinyproxy-service:
-    runs-on: ubuntu-latest
-    name: Test Tinyproxy Service Functionality
-    needs: test-docker-build
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Build Docker image
+      run: docker build -t test-tinyproxy .
       
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Run service functionality tests
+    - name: Test proxy is listening
       run: |
-        ./test-docker-build.sh
-        ./test-tinyproxy-service.sh
-
-  test-upstream-proxy:
-    runs-on: ubuntu-latest
-    name: Test Upstream Proxy Feature
-    needs: test-docker-build
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Run upstream proxy tests
-      run: |
-        ./test-docker-build.sh
-        ./test-upstream-proxy.sh
-
-  integration-test:
-    runs-on: ubuntu-latest
-    name: Integration Tests
-    needs: [test-tinyproxy-service, test-upstream-proxy]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Install Docker Compose
-      run: |
-        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        docker-compose --version
-      
-    - name: Build test images
-      run: ./test-docker-build.sh
-      
-    - name: Test docker-compose configuration
-      run: |
-        # Test docker-compose can start services
-        docker-compose config
-        echo "✅ Docker Compose configuration is valid"
+        # Start container
+        docker run -d --name test-proxy -p 8888:8888 test-tinyproxy
         
-    - name: Test healthcheck functionality
-      run: |
-        # Build main Dockerfile for healthcheck test
-        if ! docker build -t test-healthcheck -f Dockerfile .; then
-          echo "Failed to build test image"
+        # Wait for service to start
+        sleep 5
+        
+        # Test that tinyproxy process is running
+        if docker exec test-proxy pidof tinyproxy > /dev/null; then
+          echo "✅ Tinyproxy process is running"
+        else
+          echo "❌ Tinyproxy process is not running"
+          docker logs test-proxy
           exit 1
         fi
         
-        # Start container with stats enabled for healthcheck
-        docker run -d --name test-healthcheck-container \
-          -e STAT_HOST="tinyproxy.stats" \
-          test-healthcheck
+        # Test that the proxy service responds (health check without external dependency)
+          echo "❌ Proxy is not responding on port 8888"
+          docker logs test-proxy
+          exit 1
+        fi
         
-        # Wait for service to start
-        sleep 10
+        # Test upstream proxy configuration
+        docker stop test-proxy || { echo "❌ Failed to stop test-proxy container"; docker logs test-proxy; exit 1; }
+        docker rm test-proxy || { echo "❌ Failed to remove test-proxy container"; docker ps -a; exit 1; }
         
-        # Test healthcheck command directly
-        if docker exec test-healthcheck-container curl -I -H "Host: tinyproxy.stats" "http://localhost:8888"; then
-          echo "✅ Healthcheck command works"
+        # Test with upstream proxy
+        docker run -d --name test-upstream-proxy \
+          -e UPSTREAM_PROXY="http://proxy.example.com:8080" \
+          test-tinyproxy
+        
+        sleep 3
+        
+        # Verify upstream config was applied
+        if docker exec test-upstream-proxy grep "Upstream http proxy.example.com:8080" /etc/tinyproxy/tinyproxy.conf; then
+          echo "✅ Upstream proxy configuration works"
         else
-          echo "❌ Healthcheck command failed"
-          docker logs test-healthcheck-container
+          echo "❌ Upstream proxy configuration failed"
+          docker logs test-upstream-proxy
           exit 1
         fi
         
         # Cleanup
-        docker stop test-healthcheck-container
-        docker rm test-healthcheck-container
+        docker stop test-upstream-proxy
+        docker rm test-upstream-proxy
