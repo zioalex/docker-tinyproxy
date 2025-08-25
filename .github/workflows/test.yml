@@ -45,8 +45,8 @@ jobs:
         fi
         
         # Test upstream proxy configuration
-        docker stop test-proxy
-        docker rm test-proxy
+        docker stop test-proxy || { echo "❌ Failed to stop test-proxy container"; docker logs test-proxy; exit 1; }
+        docker rm test-proxy || { echo "❌ Failed to remove test-proxy container"; docker ps -a; exit 1; }
         
         # Test with upstream proxy
         docker run -d --name test-upstream-proxy \
