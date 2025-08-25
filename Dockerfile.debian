@@ -56,8 +56,8 @@ CMD set -eu; \
         cp /etc/tinyproxy/tinyproxy.default.conf "$CONFIG"; \
         sed -i "s|^Allow |#Allow |" "$CONFIG"; \
         [    "$PORT" != "8888" ]                              && sed -i "s|^Port 8888|Port $PORT|" "$CONFIG"; \
-        sed -i "s|^#Listen.*|Listen 0.0.0.0|" "$CONFIG"; \
-        grep -q "^Listen" "$CONFIG" || echo "Listen 0.0.0.0" >> "$CONFIG"; \
+        sed -i "0,/^#Listen.*/{s|^#Listen.*|Listen 0.0.0.0|}" "$CONFIG"; \
+        if ! grep -q "^Listen 0.0.0.0" "$CONFIG"; then echo "Listen 0.0.0.0" >> "$CONFIG"; fi; \
         [ -z "$DISABLE_VIA_HEADER" ]                          || sed -i "s|^#DisableViaHeader .*|DisableViaHeader Yes|" "$CONFIG"; \
         [ -z "$STAT_HOST" ]                                   || sed -i "s|^#StatHost .*|StatHost \"${STAT_HOST}\"|" "$CONFIG"; \
         [ -z "$MAX_CLIENTS" ]                                 || sed -i "s|^MaxClients .*|MaxClients $MAX_CLIENTS|" "$CONFIG"; \
