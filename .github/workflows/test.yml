@@ -39,10 +39,9 @@ jobs:
         fi
         
         # Test that the proxy service responds (health check without external dependency)
-        if docker exec test-proxy curl -f --connect-timeout 5 -s http://localhost:8888 > /dev/null 2>&1; then
-          echo "✅ Proxy is responding on port 8888"
-        else
-          echo "✅ Proxy is listening on port 8888 (connection refused is expected for HTTP requests to proxy port)"
+          echo "❌ Proxy is not responding on port 8888"
+          docker logs test-proxy
+          exit 1
         fi
         
         # Test upstream proxy configuration
